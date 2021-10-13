@@ -48,11 +48,13 @@ def get_start_end_date(my_date):
     end_date = to_integer(my_date + timedelta(days=1))
     return start_date, end_date
 
-def save_sum(df_name, sum_name, feed_dict, dir, output_loc):
-    sum_df = pd.DataFrame()
-    for feed in feed_dict: 
-        sum_df = pd.concat([sum_df, feed_dict[feed][df_name]])
-    sum_df.to_csv(os.path.join(output_loc, sum_name), index=None)
+def merge_and_export(feed_dict, output_loc,  file_list):
+    
+    for file_name in file_list: 
+        df = pd.DataFrame()
+        for feed in feed_dict:
+            df = pd.concat([df, feed_dict[feed][file_name]])
+        df.to_csv(os.path.join(output_loc, file_name + '.txt'), index=None)
 
 def get_weekday(my_date):
     week_days = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
@@ -114,6 +116,7 @@ def run(args):
     service_date = args.service_date
     str_service_date = str(service_date)
     my_date = datetime(int(str_service_date[0:4]), int(str_service_date[4:6]), int(str_service_date[6:8]))
+    gtfs_file_list = ['agency', 'trips', 'stop_times', 'stops', 'routes', 'shapes']
 
     logger.info('GTFS Directory path is: {}'.format(dir))
     logger.info('Output Directory path is: {}'.format(output_loc))
@@ -127,7 +130,6 @@ def run(args):
     feed_path_list = list()
     
     for feed in feed_list: 
-        print (feed)
         feed_dict[feed] = {}
         # read data
 
@@ -140,7 +142,8 @@ def run(args):
         service_id_list = get_service_ids(calendar, calendar_dates, day_of_week, service_date)
 
         if len(service_id_list) == 0:
-            print ('There are no service ids for service date {} for feed {}'.format(str_service_date, feed))
+            logger.info ('There are no service ids for service date {} for feed {}'.format(str_service_date, feed))
+            logger.info ('Exiting application early!')
             sys.exit()
 
         for id in service_id_list:
@@ -151,6 +154,7 @@ def run(args):
         stop_times = pd.read_csv(os.path.join(dir, feed, 'stop_times.txt'))
 
         if os.path.exists(os.path.join(dir, feed, 'frequencies.txt')):
+            logger.info('Feed {} contains frequencies.txt. Unique trips will be added to outputs based on headways/frequencies'.format(feed))
             frequencies = pd.read_csv(os.path.join(dir, feed, 'frequencies.txt'))
             if len(frequencies) > 0:
                 trips, stop_times = frequencies_to_trips(frequencies, trips, stop_times)
@@ -170,51 +174,41 @@ def run(args):
         shapes = create_id(shapes, feed, 'shape_id', 'shape_id')
         
         # trips
-        trips_df = trips.loc[trips['service_id'].isin(service_id_list)]
-        trips_df['service_id'] = 1
-        trip_id_list = np.unique(trips_df['trip_id'].tolist())
-        route_id_list = np.unique(trips_df['route_id'].tolist())
-        shape_id_list = np.unique(trips_df['shape_id'].tolist())
+        trips = trips.loc[trips['service_id'].isin(service_id_list)]
+        trips['service_id'] = 1
+        trip_id_list = np.unique(trips['trip_id'].tolist())
+        route_id_list = np.unique(trips['route_id'].tolist())
+        shape_id_list = np.unique(trips['shape_id'].tolist())
         # stop times
-        stop_times_df = stop_times.loc[stop_times['trip_id'].isin(trip_id_list)]
-        stop_id_list = np.unique(stop_times_df['stop_id'].tolist())
+        stop_times = stop_times.loc[stop_times['trip_id'].isin(trip_id_list)]
+        stop_id_list = np.unique(stop_times['stop_id'].tolist())
         # stops
-        stops_df = stops.loc[stops['stop_id'].isin(stop_id_list)]
+        stops = stops.loc[stops['stop_id'].isin(stop_id_list)]
         # routes
-        routes_df = routes.loc[routes['route_id'].isin(route_id_list)]
-        routes_df['route_short_name'].fillna(routes_df['route_id'], inplace=True)
+        routes = routes.loc[routes['route_id'].isin(route_id_list)]
+        routes['route_short_name'].fillna(routes['route_id'], inplace=True)
         # shapes
-        shapes_df = shapes.loc[shapes['shape_id'].isin(shape_id_list)]
+        shapes = shapes.loc[shapes['shape_id'].isin(shape_id_list)]
         
         # pass data to the dictionary
-        feed_dict[feed]['agency_df'] = agency
+        feed_dict[feed]['agency'] = agency
+        feed_dict[feed]['trips'] = trips
+        feed_dict[feed]['stop_times'] = stop_times
+        feed_dict[feed]['stops'] = stops
+        feed_dict[feed]['routes'] = routes
+        feed_dict[feed]['shapes'] = shapes
         
-        #feed_dict[feed]['calendar_dates_df'] = calendar_dates_df
-        feed_dict[feed]['trips_df'] = trips_df
-        feed_dict[feed]['stop_times_df'] = stop_times_df
-        feed_dict[feed]['stops_df'] = stops_df
-        feed_dict[feed]['routes_df'] = routes_df
-        feed_dict[feed]['shapes_df'] = shapes_df
-        #feed_dict[feed]['fare_rules_df'] = fare_rules_df
-        #feed_dict[feed]['fare_attributes_df'] = fare_attributes_df
-        #feed_dict[feed]['service_id_df'] = pd.DataFrame({'service_id': service_id_list})
 
     # calendar
-    calendar_df = pd.DataFrame(columns = ['service_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date'])
-    calendar_df.loc[0] = 0
-    calendar_df['service_id'] = 1
-    calendar_df[day_of_week] = 1
-    calendar_df['start_date'] = start_date
-    calendar_df['end_date'] = end_date
-    calendar_df.to_csv(os.path.join(output_loc, 'calendar.txt'), index=None)
+    calendar = pd.DataFrame(columns = ['service_id', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'start_date', 'end_date'])
+    calendar.loc[0] = 0
+    calendar['service_id'] = 1
+    calendar[day_of_week] = 1
+    calendar['start_date'] = start_date
+    calendar['end_date'] = end_date
+    calendar.to_csv(os.path.join(output_loc, 'calendar.txt'), index=None)
 
-    save_sum('agency_df', 'agency.txt', feed_dict, dir, output_loc)
-    save_sum('trips_df', 'trips.txt', feed_dict, dir, output_loc)
-    save_sum('stops_df', 'stops.txt', feed_dict, dir, output_loc)
-    save_sum('stop_times_df', 'stop_times.txt', feed_dict, dir, output_loc)
-    save_sum('routes_df', 'routes.txt', feed_dict, dir, output_loc)
-    save_sum('shapes_df', 'shapes.txt', feed_dict, dir, output_loc)
-    #save_sum('service_id_df', 'service_id.txt', feed_dict, dir, output_loc)
+    merge_and_export(feed_dict, output_loc, gtfs_file_list)
 
     logger.info('Finished running combine_gtfs_feeds')
     sys.exit()
