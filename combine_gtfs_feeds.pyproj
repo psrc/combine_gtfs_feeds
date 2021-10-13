@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{15834dd6-b3f9-4e7e-8235-6460c043400d}</ProjectGuid>
+    <ProjectHome />
+    <StartupFile>combine_gtfs_feeds\cli\run.py</StartupFile>
+    <SearchPath />
+    <WorkingDirectory>.</WorkingDirectory>
+    <OutputPath>.</OutputPath>
+    <ProjectTypeGuids>{888888a0-9f3d-457c-b088-3a5042f75d52}</ProjectTypeGuids>
+    <LaunchProvider>Standard Python launcher</LaunchProvider>
+    <InterpreterId />
+    <CommandLineArguments>-g R:\e2projects_two\gtfs_consolidator\gtfs_2021 -s 20210914 -o C:/Stefan/scratch/gtfs </CommandLineArguments>
+    <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'" />
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'" />
+  <PropertyGroup>
+    <VisualStudioVersion Condition=" '$(VisualStudioVersion)' == '' ">10.0</VisualStudioVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Content Include="combine_gtfs_feeds.egg-info\dependency_links.txt" />
+    <Content Include="combine_gtfs_feeds.egg-info\entry_points.txt" />
+    <Content Include="combine_gtfs_feeds.egg-info\requires.txt" />
+    <Content Include="combine_gtfs_feeds.egg-info\SOURCES.txt" />
+    <Content Include="combine_gtfs_feeds.egg-info\top_level.txt" />
+    <Content Include="requirements.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="build\lib\combine_gtfs_feeds\gtfs_consolidate.py" />
+    <Compile Include="build\lib\combine_gtfs_feeds\__init__.py" />
+    <Compile Include="combine_gtfs_feeds\cli\cli.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="combine_gtfs_feeds\cli\log_controller.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="combine_gtfs_feeds\cli\run.py" />
+    <Compile Include="combine_gtfs_feeds\cli\main.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="combine_gtfs_feeds\cli\__init__.py" />
+    <Compile Include="combine_gtfs_feeds\__init__.py" />
+    <Compile Include="setup.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="build\" />
+    <Folder Include="build\lib\" />
+    <Folder Include="build\lib\combine_gtfs_feeds" />
+    <Folder Include="combine_gtfs_feeds" />
+    <Folder Include="combine_gtfs_feeds.egg-info" />
+    <Folder Include="combine_gtfs_feeds\cli\" />
+  </ItemGroup>
+  <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
+</Project>
