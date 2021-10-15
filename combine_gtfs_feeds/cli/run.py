@@ -136,16 +136,15 @@ def frequencies_to_trips(frequencies, trips, stop_times):
     # following assumes that the total number of trips
     # includes a final one that leaves first
     # stop at end_time in frequencies
-    frequencies['total_trips'] = (
+    frequencies['total_trips'] = ((
         (frequencies['end_time_secs']-frequencies
-         ['start_time_secs']) / frequencies['headway_secs']) + 1
+         ['start_time_secs']) / frequencies['headway_secs']) + 1).astype(int)
 
     trips_update = trips.merge(frequencies, on='trip_id')
     trips_update = trips_update.loc[trips_update.index.repeat(
         trips_update['total_trips'])].reset_index(drop=True)
     trips_update['counter'] = trips_update.groupby('trip_id').cumcount() + 1
-    trips_update['trip_id'] = trips_update['trip_id'] + \
-        '_' + trips_update['counter'].astype(str)
+    trips_update['trip_id'] = trips_update['trip_id'].astype(str) + '_' + trips_update['counter'].astype(str)
 
     stop_times_update = stop_times.merge(frequencies, on='trip_id')
     stop_times_update['arrival_time_secs'] = stop_times_update[
@@ -169,7 +168,7 @@ def frequencies_to_trips(frequencies, trips, stop_times):
         'arrival_time_secs'].apply(to_hhmmss)
     stop_times_update['counter'] = stop_times_update['counter'] + 1
     stop_times_update['trip_id'] = stop_times_update[
-        'trip_id'] + '_' + stop_times_update['counter'].astype(str)
+        'trip_id'].astype(str) + '_' + stop_times_update['counter'].astype(str)
 
     # remove trip_ids that are in frequencies
     stop_times = stop_times[~stop_times['trip_id'].isin(
@@ -248,13 +247,13 @@ def run(args):
         stop_times = pd.read_csv(os.path.join(dir, feed, 'stop_times.txt'))
 
         if os.path.exists(os.path.join(dir, feed, 'frequencies.txt')):
-            logger.info('Feed {} contains frequencies.txt...'.format(feed)) 
-            logger.info('...Unique trips will be added to outputs based on headways frequencies')
+            
             frequencies = pd.read_csv(
                 os.path.join(dir, feed, 'frequencies.txt'))
             if len(frequencies) > 0:
-                trips, stop_times = frequencies_to_trips(
-                    frequencies, trips, stop_times)
+                logger.info('Feed {} contains frequencies.txt...'.format(feed)) 
+                logger.info('...Unique trips will be added to outputs based on headways frequencies')
+                trips, stop_times = frequencies_to_trips(frequencies, trips, stop_times)
 
         routes = pd.read_csv(os.path.join(dir, feed, 'routes.txt'))
         shapes = pd.read_csv(os.path.join(dir, feed, 'shapes.txt'))
