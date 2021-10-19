@@ -195,11 +195,17 @@ def run(args):
     """
     output_loc = args.output_dir
 
+    if not os.path.isdir(output_loc):
+         print('Output Directory path : {} does not exist.'.format(output_loc))
+         print('Exiting application early!')
+         sys.exit()
+
     logger = log_controller.setup_custom_logger('main_logger', output_loc)
     logger.info(
         '------------------combine_gtfs_feeds Started----------------')
 
     dir = args.gtfs_dir
+    
     service_date = args.service_date
     str_service_date = str(service_date)
     my_date = datetime(int(str_service_date[0:4]), int(
@@ -211,11 +217,22 @@ def run(args):
     logger.info('Output Directory path is: {}'.format(output_loc))
     logger.info('Service Date is: {}'.format(str_service_date))
 
+    if not os.path.isdir(dir):
+         logger.info('GTFS Directory path : {} does not exist.'.format(dir))
+         logger.info('Exiting application early!')
+         sys.exit()
+
     start_date, end_date = get_start_end_date(my_date)
     day_of_week = get_weekday(my_date)
     feed_list = next(os.walk(dir))[1]
     feed_dict = {}
     feed_path_list = list()
+
+    if len(feed_list)==0:
+        logger.info('There are no GTFS feeds in GTFS Directory path : {}.'.format(dir))
+        logger.info('Exiting application early!')
+        sys.exit()
+
 
     for feed in feed_list:
         feed_dict[feed] = {}
@@ -252,7 +269,7 @@ def run(args):
                 os.path.join(dir, feed, 'frequencies.txt'))
             if len(frequencies) > 0:
                 logger.info('Feed {} contains frequencies.txt...'.format(feed)) 
-                logger.info('...Unique trips will be added to outputs based on headways frequencies')
+                logger.info('...Unique trips will be added to outputs based on headways in frequencies.txt')
                 trips, stop_times = frequencies_to_trips(frequencies, trips, stop_times)
 
         routes = pd.read_csv(os.path.join(dir, feed, 'routes.txt'))
