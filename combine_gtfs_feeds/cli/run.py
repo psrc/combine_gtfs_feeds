@@ -127,18 +127,32 @@ def frequencies_to_trips(frequencies, trips, stop_times):
     in both of these files. 
     """
 
+    # some feeds will use the same trip_id for multiple rows
+    # need to create a unique id for each row
+    frequencies['frequency_id'] = frequencies.index
+
     frequencies['start_time_secs'] = frequencies['start_time'].apply(
         convert_to_seconds)
 
     frequencies['end_time_secs'] = frequencies['end_time'].apply(
         convert_to_seconds)
 
-    # following assumes that the total number of trips
-    # includes a final one that leaves first
-    # stop at end_time in frequencies
+    # following is coded so the total number of trips
+    # does not include a final one that leaves the first
+    # stop at end_time in frequencies. I think this is the
+    # correct interpredtation of the field description:
+    # 'Time at which service changes to a different headway 
+    # (or ceases) at the first stop in the trip.'
+
+    # Rounding total trips to make sure all trips are counted 
+    # when end time is in the following format: 14:59:59, 
+    # instead of 15:00:00.
+
     frequencies['total_trips'] = ((
-        (frequencies['end_time_secs']-frequencies
-         ['start_time_secs']) / frequencies['headway_secs']) + 1).astype(int)
+            (frequencies['end_time_secs']-frequencies[
+                'start_time_secs']) / frequencies[
+                    'headway_secs'])).round(0).astype(int)
+
 
     trips_update = trips.merge(frequencies, on='trip_id')
     trips_update = trips_update.loc[trips_update.index.repeat(
@@ -146,29 +160,51 @@ def frequencies_to_trips(frequencies, trips, stop_times):
     trips_update['counter'] = trips_update.groupby('trip_id').cumcount() + 1
     trips_update['trip_id'] = trips_update['trip_id'].astype(str) + '_' + trips_update['counter'].astype(str)
 
-    stop_times_update = stop_times.merge(frequencies, on='trip_id')
+    stop_times_update = frequencies.merge(
+        stop_times, on='trip_id', how='left')
     stop_times_update['arrival_time_secs'] = stop_times_update[
         'arrival_time'].apply(convert_to_seconds)
     stop_times_update['departure_time_secs'] = stop_times_update[
         'departure_time'].apply(convert_to_seconds)
-    stop_times_update = stop_times_update.loc[
-        stop_times_update.index.repeat(
-            stop_times_update['total_trips'])].reset_index(drop=True)
-    stop_times_update['counter'] = stop_times_update.groupby(
-        ['trip_id', 'stop_id']).cumcount()
-    stop_times_update['departure_time_secs'] = stop_times_update[
-        'departure_time_secs'] + (stop_times_update[
-            'counter'] * stop_times_update['headway_secs'])
+
+    stop_times_update['elapsed_time'] = stop_times_update.groupby(
+            ['trip_id', 'start_time'])['arrival_time_secs'].transform('first')
+    stop_times_update['elapsed_time'] = stop_times_update[
+            'arrival_time_secs'] - stop_times_update['elapsed_time']
     stop_times_update['arrival_time_secs'] = stop_times_update[
-        'arrival_time_secs'] + (stop_times_update[
-            'counter'] * stop_times_update['headway_secs'])
+            'start_time_secs'] + stop_times_update['elapsed_time']
+    
+    # for now assume departure time is the same as arrival time.
+    stop_times_update['departure_time_secs'] = stop_times_update[
+            'start_time_secs'] + stop_times_update['elapsed_time']
+
+    stop_times_update = stop_times_update.loc[
+            stop_times_update.index.repeat(
+                stop_times_update['total_trips'])].reset_index(drop=True)
+        # handles cae of repeated trip_ids
+    stop_times_update['counter'] = stop_times_update.groupby(
+            ['frequency_id', 'stop_id']).cumcount()
+    stop_times_update['departure_time_secs'] = stop_times_update[
+            'departure_time_secs'] + (stop_times_update[
+                'counter'] * stop_times_update['headway_secs'])
+    stop_times_update['arrival_time_secs'] = stop_times_update[
+            'arrival_time_secs'] + (stop_times_update[
+                'counter'] * stop_times_update['headway_secs'])
+
+    # now we want to get the cumcount based on trip_id
+    stop_times_update['counter'] = stop_times_update.groupby(
+            ['trip_id', 'stop_id']).cumcount() + 1
     stop_times_update['departure_time'] = stop_times_update[
         'departure_time_secs'].apply(to_hhmmss)
+    #stop_times_update['departure_time'] = stop_times_update.apply(
+    #        self.__to_hhmmss, axis=1, args=('departure_time_secs',))
     stop_times_update['arrival_time'] = stop_times_update[
         'arrival_time_secs'].apply(to_hhmmss)
-    stop_times_update['counter'] = stop_times_update['counter'] + 1
+    #stop_times_update['arrival_time'] = stop_times_update.apply(
+    #        self.__to_hhmmss, axis=1, args=('arrival_time_secs',))
     stop_times_update['trip_id'] = stop_times_update[
-        'trip_id'].astype(str) + '_' + stop_times_update['counter'].astype(str)
+            'trip_id'].astype(str) + '_' + stop_times_update[
+                'counter'].astype(str)
 
     # remove trip_ids that are in frequencies
     stop_times = stop_times[~stop_times['trip_id'].isin(
@@ -186,7 +222,7 @@ def frequencies_to_trips(frequencies, trips, stop_times):
 
     return trips, stop_times
 
-
+    
 def run(args):
     """
     Implements the 'run' sub-command, which combines
@@ -251,8 +287,8 @@ def run(args):
             calendar, calendar_dates, day_of_week, service_date)
 
         if len(service_id_list) == 0:
-            logger.info('There are no service ids for service\
-                date {} for feed {}'.format(str_service_date, feed))
+            logger.info('There are no service ids for service date {}...'.format(str_service_date))
+            logger.info('for feed {}'.format(feed))
             logger.info('Exiting application early!')
             sys.exit()
 
@@ -269,7 +305,7 @@ def run(args):
                 os.path.join(dir, feed, 'frequencies.txt'))
             if len(frequencies) > 0:
                 logger.info('Feed {} contains frequencies.txt...'.format(feed)) 
-                logger.info('...Unique trips will be added to outputs based on headways in frequencies.txt')
+                logger.info('Unique trips will be added to outputs based on headways in frequencies.txt')
                 trips, stop_times = frequencies_to_trips(frequencies, trips, stop_times)
 
         routes = pd.read_csv(os.path.join(dir, feed, 'routes.txt'))
