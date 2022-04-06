@@ -6,6 +6,32 @@ import argparse
 import sys
 from datetime import datetime, timedelta
 import time
+from pathlib import Path
+
+
+
+class Combined_GTFS(object):
+    file_list = ['agency', 'trips',
+                      'stop_times', 'stops', 'routes', 'shapes']
+
+    def __init__(self, df_dict):
+        self.agency_df = df_dict['agency']
+        self.routes_df = df_dict['routes']
+        self.stops_df = df_dict['stops']
+        self.stop_times_df = df_dict['stop_times']
+        self.shapes_df = df_dict['shapes']
+        self.trips_df = df_dict['trips']
+
+    def export_feed(self, dir):
+        dir = Path(dir)
+        self.agency_df.to_csv(dir/'agency.txt', index=None)
+        self.routes_df.to_csv(dir/'routes.txt', index=None)
+        self.stops_df.to_csv(dir/'stops.txt', index=None)
+        self.stop_times_df.to_csv(dir/'stop_times.txt', index=None)
+        self.shapes_df.to_csv(dir/'shapes.txt', index=None)
+        self.trips_df.to_csv(dir/'trips.txt', index=None)
+
+
 
 def add_run_args(parser, multiprocess=True):
     """
@@ -81,16 +107,16 @@ def get_start_end_date(my_date):
     return start_date, end_date
 
 
-def merge_and_export(feed_dict, output_loc,  file_list):
-    """
-    Merges each GTFS file/df into one
-    then exports to user paramter output_dir
-    """
-    for file_name in file_list:
-        df = pd.DataFrame()
-        for feed in feed_dict:
-            df = pd.concat([df, feed_dict[feed][file_name]])
-        df.to_csv(os.path.join(output_loc, file_name + '.txt'), index=None)
+#def merge_and_export(feed_dict, output_loc,  file_list):
+#    """
+#    Merges each GTFS file/df into one
+#    then exports to user paramter output_dir
+#    """
+#    for file_name in file_list:
+#        df = pd.DataFrame()
+#        for feed in feed_dict:
+#            df = pd.concat([df, feed_dict[feed][file_name]])
+#        df.to_csv(os.path.join(output_loc, file_name + '.txt'), index=None)
 
 
 def get_weekday(my_date):
@@ -229,7 +255,19 @@ def run(args):
     gtfs files from each feed and writes them out to 
     a single feed. 
     """
-    output_loc = args.output_dir
+    feeds = combine(args.gtfs_dir, args.output_dir, args.service_date)
+
+    
+    feeds.export_feed(args.output_dir)
+    
+    #for file_name in feeds.keys():
+    #    feeds[file_name].to_csv(os.path.join(output_loc, file_name + '.txt'), index=None)
+
+    logger.info('Finished running combine_gtfs_feeds')
+    sys.exit()
+
+def combine(gtfs_dir, output_dir, service_date):
+    output_loc = output_dir
 
     if not os.path.isdir(output_loc):
          print('Output Directory path : {} does not exist.'.format(output_loc))
@@ -240,14 +278,13 @@ def run(args):
     logger.info(
         '------------------combine_gtfs_feeds Started----------------')
 
-    dir = args.gtfs_dir
+    dir = gtfs_dir
     
-    service_date = args.service_date
+    #service_date = args.service_date
     str_service_date = str(service_date)
     my_date = datetime(int(str_service_date[0:4]), int(
         str_service_date[4:6]), int(str_service_date[6:8]))
-    gtfs_file_list = ['agency', 'trips',
-                      'stop_times', 'stops', 'routes', 'shapes']
+    
 
     logger.info('GTFS Directory path is: {}'.format(dir))
     logger.info('Output Directory path is: {}'.format(output_loc))
@@ -358,12 +395,18 @@ def run(args):
     calendar[day_of_week] = 1
     calendar['start_date'] = start_date
     calendar['end_date'] = end_date
-    calendar.to_csv(os.path.join(output_loc, 'calendar.txt'), index=None)
 
-    merge_and_export(feed_dict, output_loc, gtfs_file_list)
+    combined_feed_dict= {}
+    combined_feed_dict['calendar'] = calendar
 
-    logger.info('Finished running combine_gtfs_feeds')
-    sys.exit()
+    for file_name in Combined_GTFS.file_list:
+        df = pd.DataFrame()
+        for feed in feed_dict:
+            df = pd.concat([df, feed_dict[feed][file_name]])
+        combined_feed_dict[file_name] = df
+    
+    return Combined_GTFS(combined_feed_dict)
+    
 
 
 if __name__ == '__main__':
