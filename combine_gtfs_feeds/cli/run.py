@@ -134,6 +134,18 @@ def get_weekday(my_date):
     return week_days[my_date.weekday()]
 
 
+def convert_to_decimal_minutes(row, field):
+    """
+    Convert HH:MM:SS to seconds since midnight
+    for comparison purposes.
+    """
+
+    H, M, S = row[field].split(":")
+    seconds = float(((float(H) * 3600) + (float(M) * 60) + float(S)) / 60)
+
+    return seconds
+
+
 def convert_to_seconds(value):
     """
     Converts hh:mm:ss format to number
@@ -148,6 +160,18 @@ def to_hhmmss(value):
     Converts to hhmmss format.
     """
     return time.strftime("%H:%M:%S", time.gmtime(value))
+
+
+def interpolate_arrival_departure_time(stop_times):
+    stop_times.sort_values(["trip_id", "stop_sequence"], inplace=True)
+    for col_name in ["arrival_time", "departure_time"]:
+        stop_times[col_name].fillna("00:00:00", inplace=True)
+        stop_times["temp"] = stop_times[col_name].apply(convert_to_seconds)
+        stop_times["temp"].replace(0, np.NaN, inplace=True)
+        stop_times["temp"].interpolate(inplace=True)
+        stop_times[col_name] = stop_times["temp"].apply(to_hhmmss)
+        stop_times.drop(columns=["temp"], inplace=True)
+    return stop_times
 
 
 def frequencies_to_trips(frequencies, trips, stop_times):
@@ -300,7 +324,7 @@ def run(args):
     feeds.export_feed(args.output_dir)
 
     logger.info("Finished running combine_gtfs_feeds")
-    sys.exit()
+    # sys.exit()
 
 
 def combine(gtfs_dir, output_dir, service_date, logger):
@@ -409,8 +433,17 @@ def combine(gtfs_dir, output_dir, service_date, logger):
         trip_id_list = np.unique(trips["trip_id"].tolist())
         route_id_list = np.unique(trips["route_id"].tolist())
         shape_id_list = np.unique(trips["shape_id"].tolist())
+
         # stop times
         stop_times = stop_times.loc[stop_times["trip_id"].isin(trip_id_list)]
+        if stop_times["departure_time"].isnull().any():
+            logger.info(
+                "Feed {} contains missing departure/arrival times. Interpolating missing times.".format(
+                    feed
+                )
+            )
+            stop_times = interpolate_arrival_departure_time(stop_times)
+
         stop_id_list = np.unique(stop_times["stop_id"].tolist())
         # stops
         stops = stops.loc[stops["stop_id"].isin(stop_id_list)]
