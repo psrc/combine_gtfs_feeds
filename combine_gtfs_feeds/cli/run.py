@@ -1,4 +1,5 @@
 import combine_gtfs_feeds.cli.log_controller as log_controller
+from gtfs_schema import GTFS_Schema
 import pandas as pd
 import numpy as np
 import os as os
@@ -14,13 +15,34 @@ class Combined_GTFS(object):
     file_list = ["agency", "trips", "stop_times", "stops", "routes", "shapes"]
 
     def __init__(self, df_dict):
-        self.agency_df = df_dict["agency"]
-        self.routes_df = df_dict["routes"]
-        self.stops_df = df_dict["stops"]
-        self.stop_times_df = df_dict["stop_times"]
-        self.shapes_df = df_dict["shapes"]
-        self.trips_df = df_dict["trips"]
-        self.calendar_df = df_dict["calendar"]
+        #self.agency_df = df_dict["agency"]
+        self.agency_df = GTFS_Schema.Agency.validate(df_dict["agency"])
+        self.agency_df = self.agency_df[[col for col in GTFS_Schema.agency_columns if col in self.agency_df.columns]]
+
+        #self.routes_df = df_dict["routes"]
+        self.routes_df = GTFS_Schema.Routes.validate(df_dict["routes"])
+        self.routes_df = self.routes_df[[col for col in GTFS_Schema.routes_columns if col in self.routes_df.columns]]
+
+        #self.stops_df = df_dict["stops"]
+        self.stops_df = GTFS_Schema.Stops.validate(df_dict["stops"])
+        self.stops_df = self.stops_df[[col for col in GTFS_Schema.stops_columns if col in self.stops_df.columns]]
+
+        #self.stop_times_df = df_dict["stop_times"]
+        self.stop_times_df = GTFS_Schema.Stop_Times.validate(df_dict["stop_times"])
+        self.stop_times_df = self.stop_times_df[[col for col in GTFS_Schema.stop_times_columns if col in self.stop_times_df.columns]]
+
+        #self.shapes_df = df_dict["shapes"]
+        self.shapes_df = GTFS_Schema.Shapes.validate(df_dict["shapes"])
+        self.shapes_df = self.shapes_df[[col for col in GTFS_Schema.shapes_columns if col in self.shapes_df.columns]]
+
+        #self.trips_df = df_dict["trips"]
+        self.trips_df = GTFS_Schema.Trips.validate(df_dict["trips"])
+        self.trips_df = self.trips_df[[col for col in GTFS_Schema.trips_columns if col in self.trips_df.columns]]
+
+        #self.calendar_df = df_dict["calendar"]
+        self.calendar_df = GTFS_Schema.Calendar.validate(df_dict["calendar"])
+        self.calendar_df = self.calendar_df[[col for col in GTFS_Schema.calendar_columns if col in self.calendar_df.columns]]
+
 
     def export_feed(self, dir):
         dir = Path(dir)
@@ -94,7 +116,8 @@ def create_id(df, feed, id_column):
     Changes id_column by prepending each value with
     the feed parameter.
     """
-    df[id_column] = feed + "_" + df[id_column].astype(str)
+    #df[id_column] = feed + "_" + df[id_column].astype(str)
+    df[id_column] = np.where(~df[id_column].isnull(), feed + "_" + df[id_column].astype(str), '')
     return df
 
 
@@ -416,6 +439,9 @@ def combine(gtfs_dir, output_dir, service_date, logger):
         routes = read_gtfs(full_path, "routes.txt", zipped)
         shapes = read_gtfs(full_path, "shapes.txt", zipped)
         agency = read_gtfs(full_path, "agency.txt", zipped)
+        if 'agency_id' not in routes.columns:
+            routes['agency_id'] = agency['agency_id'][0]
+        
 
         # create new IDs
         trips = create_id(trips, feed, "trip_id")

@@ -11,7 +11,7 @@ long_description = "combine_gtfs_feeds is a command line tool \
 
 setup(
     name="combine_gtfs_feeds",
-    version="0.1.2",
+    version="0.1.3",
     author="psrc staff",
     author_email="scoe@psrc.org",
     url="https://github.com/psrc/combine_gtfs_feeds",
