@@ -1,5 +1,9 @@
 import combine_gtfs_feeds.cli.log_controller as log_controller
-from gtfs_schema import GTFS_Schema
+try:
+    from .gtfs_schema import GTFS_Schema
+except:
+    from gtfs_schema import GTFS_Schema
+
 import pandas as pd
 import numpy as np
 import os as os
@@ -14,8 +18,9 @@ import zipfile
 class Combined_GTFS(object):
     file_list = ["agency", "trips", "stop_times", "stops", "routes", "shapes"]
 
-    def __init__(self, df_dict):
+    def __init__(self, df_dict, output_dir):
         # self.agency_df = df_dict["agency"]
+        self.output_dir = output_dir
         self.agency_df = GTFS_Schema.Agency.validate(df_dict["agency"])
         self.agency_df = self.agency_df[
             [col for col in GTFS_Schema.agency_columns if col in self.agency_df.columns]
@@ -65,8 +70,8 @@ class Combined_GTFS(object):
             ]
         ]
 
-    def export_feed(self, dir):
-        dir = Path(dir)
+    def export_feed(self):
+        dir = Path(self.output_dir)
         self.agency_df.to_csv(dir / "agency.txt", index=None)
         self.routes_df.to_csv(dir / "routes.txt", index=None)
         self.stops_df.to_csv(dir / "stops.txt", index=None)
@@ -362,18 +367,21 @@ def run(args):
     a single feed.
     """
 
-    logger = log_controller.setup_custom_logger("main_logger", args.output_dir)
-    logger.info("------------------combine_gtfs_feeds Started----------------")
+    #logger = log_controller.setup_custom_logger("main_logger", args.output_dir)
+    #logger.info("------------------combine_gtfs_feeds Started----------------")
 
-    feeds = combine(args.gtfs_dir, args.output_dir, args.service_date, logger)
+    feeds = combine(args.gtfs_dir, args.service_date, args.output_dir)
 
-    feeds.export_feed(args.output_dir)
+    feeds.export_feed()
 
-    logger.info("Finished running combine_gtfs_feeds")
+    #logger.info("Finished running combine_gtfs_feeds")
     # sys.exit()
+    print ("Finished running combine_gtfs_feeds")
 
 
-def combine(gtfs_dir, output_dir, service_date, logger):
+def combine(gtfs_dir, service_date, output_dir):
+    logger = log_controller.setup_custom_logger("main_logger", output_dir)
+    logger.info("------------------combine_gtfs_feeds Started----------------")
     output_loc = output_dir
 
     if not os.path.isdir(output_loc):
@@ -540,7 +548,9 @@ def combine(gtfs_dir, output_dir, service_date, logger):
             df = pd.concat([df, feed_dict[feed][file_name]])
         combined_feed_dict[file_name] = df
 
-    return Combined_GTFS(combined_feed_dict)
+    #logger.info("Finished running combine_gtfs_feeds")
+
+    return Combined_GTFS(combined_feed_dict, output_dir)
 
 
 if __name__ == "__main__":

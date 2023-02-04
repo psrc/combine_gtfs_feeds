@@ -88,12 +88,12 @@ class GTFS_Schema(object):
         drop_off_type: Optional[Series[pd.Int64Dtype]] = pa.Field(
             coerce=True, nullable=True, isin=[0, 1, 2, 3]
         )
-        continuous_pickup: Optional[Series[pd.Int64Dtype]] = pa.Field(
-            coerce=True, nullable=True, isin=[0, 1, 2, 3]
-        )
-        continuous_drop_off: Optional[Series[pd.Int64Dtype]] = pa.Field(
-            coerce=True, nullable=True, isin=[0, 1, 2, 3]
-        )
+        # continuous_pickup: Optional[Series[pd.Int64Dtype]] = pa.Field(
+        #     coerce=True, nullable=True, isin=[0, 1, 2, 3]
+        # )
+        # continuous_drop_off: Optional[Series[pd.Int64Dtype]] = pa.Field(
+        #     coerce=True, nullable=True, isin=[0, 1, 2, 3]
+        # )
         shape_dist_traveled: Optional[Series[float64]] = pa.Field(
             coerce=True, nullable=True, ge=0
         )

@@ -11,7 +11,7 @@ long_description = "combine_gtfs_feeds is a command line tool \
 
 setup(
     name="combine_gtfs_feeds",
-    version="0.1.3",
+    version="0.1.4",
     author="psrc staff",
     author_email="scoe@psrc.org",
     url="https://github.com/psrc/combine_gtfs_feeds",
@@ -20,6 +20,7 @@ setup(
     long_description_content_type="text/markdown",
     license="MIT",
     packages=find_packages(),
+    python_requires='>3.6.1',
     entry_points={
         "console_scripts": ["combine_gtfs_feeds = combine_gtfs_feeds.cli.main:main"]
     },
