@@ -1,4 +1,5 @@
 import combine_gtfs_feeds.cli.log_controller as log_controller
+
 try:
     from .gtfs_schema import GTFS_Schema
 except:
@@ -123,13 +124,19 @@ def get_service_ids(calendar, calendar_dates, day_of_week, service_date):
         & (calendar["end_date"] >= service_date)
         & (calendar[day_of_week] == 1)
     ]["service_id"].tolist()
-    exceptions_df = calendar_dates[calendar_dates["date"] == service_date]
-    add_service = exceptions_df.loc[exceptions_df["exception_type"] == 1][
-        "service_id"
-    ].tolist()
-    remove_service = exceptions_df[exceptions_df["exception_type"] == 2][
-        "service_id"
-    ].tolist()
+
+    if len(calendar_dates) > 0:
+        exceptions_df = calendar_dates[calendar_dates["date"] == service_date]
+        add_service = exceptions_df.loc[exceptions_df["exception_type"] == 1][
+            "service_id"
+        ].tolist()
+        remove_service = exceptions_df[exceptions_df["exception_type"] == 2][
+            "service_id"
+        ].tolist()
+    else:
+        add_service = []
+        remove_service = []
+
     service_id_list = [
         x for x in (add_service + regular_service_dates) if x not in remove_service
     ]
@@ -343,7 +350,7 @@ def frequencies_to_trips(frequencies, trips, stop_times):
     return trips, stop_times
 
 
-def read_gtfs(path, gtfs_file_name, is_zipped, empty_df_cols=[]):
+def read_gtfs(path, gtfs_file_name, is_zipped, feed_name, logger, empty_df_cols=[]):
 
     if is_zipped:
         zf = zipfile.ZipFile(path.with_suffix(".zip"))
@@ -351,12 +358,15 @@ def read_gtfs(path, gtfs_file_name, is_zipped, empty_df_cols=[]):
             df = pd.read_csv(zf.open(gtfs_file_name))
         except:
             df = pd.DataFrame(columns=empty_df_cols)
+            logger.info(f"Warning! Feed {feed_name} is missing {gtfs_file_name}")
     else:
         try:
             df = pd.read_csv(path / gtfs_file_name)
         except:
             df = pd.DataFrame(columns=empty_df_cols)
+            logger.info(f"Warning! Feed {feed_name} is missing {gtfs_file_name}")
 
+    df.columns = df.columns.str.replace(" ", "")
     return df
 
 
@@ -367,16 +377,16 @@ def run(args):
     a single feed.
     """
 
-    #logger = log_controller.setup_custom_logger("main_logger", args.output_dir)
-    #logger.info("------------------combine_gtfs_feeds Started----------------")
+    # logger = log_controller.setup_custom_logger("main_logger", args.output_dir)
+    # logger.info("------------------combine_gtfs_feeds Started----------------")
 
     feeds = combine(args.gtfs_dir, args.service_date, args.output_dir)
 
     feeds.export_feed()
 
-    #logger.info("Finished running combine_gtfs_feeds")
+    # logger.info("Finished running combine_gtfs_feeds")
     # sys.exit()
-    print ("Finished running combine_gtfs_feeds")
+    print("Finished running combine_gtfs_feeds")
 
 
 def combine(gtfs_dir, service_date, output_dir):
@@ -428,11 +438,13 @@ def combine(gtfs_dir, service_date, output_dir):
         feed_dict[feed] = {}
         # read data
         full_path = dir / feed
-        calendar = read_gtfs(full_path, "calendar.txt", zipped)
+        calendar = read_gtfs(full_path, "calendar.txt", zipped, feed, logger)
         calendar_dates = read_gtfs(
             full_path,
             "calendar_dates.txt",
             zipped,
+            feed,
+            logger,
             ["service_id", "date", "exception_type"],
         )
 
@@ -454,10 +466,10 @@ def combine(gtfs_dir, service_date, output_dir):
         for id in service_id_list:
             logger.info("Adding service_id {} for feed {}".format(id, feed))
 
-        trips = read_gtfs(full_path, "trips.txt", zipped)
-        stops = read_gtfs(full_path, "stops.txt", zipped)
-        stop_times = read_gtfs(full_path, "stop_times.txt", zipped)
-        frequencies = read_gtfs(full_path, "frequencies.txt", zipped)
+        trips = read_gtfs(full_path, "trips.txt", zipped, feed, logger)
+        stops = read_gtfs(full_path, "stops.txt", zipped, feed, logger)
+        stop_times = read_gtfs(full_path, "stop_times.txt", zipped, feed, logger)
+        frequencies = read_gtfs(full_path, "frequencies.txt", zipped, feed, logger)
 
         if len(frequencies) > 0:
             logger.info("Feed {} contains frequencies.txt...".format(feed))
@@ -467,9 +479,9 @@ def combine(gtfs_dir, service_date, output_dir):
             )
             trips, stop_times = frequencies_to_trips(frequencies, trips, stop_times)
 
-        routes = read_gtfs(full_path, "routes.txt", zipped)
-        shapes = read_gtfs(full_path, "shapes.txt", zipped)
-        agency = read_gtfs(full_path, "agency.txt", zipped)
+        routes = read_gtfs(full_path, "routes.txt", zipped, feed, logger)
+        shapes = read_gtfs(full_path, "shapes.txt", zipped, feed, logger)
+        agency = read_gtfs(full_path, "agency.txt", zipped, feed, logger)
         if "agency_id" not in routes.columns:
             routes["agency_id"] = agency["agency_id"][0]
 
@@ -548,7 +560,7 @@ def combine(gtfs_dir, service_date, output_dir):
             df = pd.concat([df, feed_dict[feed][file_name]])
         combined_feed_dict[file_name] = df
 
-    #logger.info("Finished running combine_gtfs_feeds")
+    # logger.info("Finished running combine_gtfs_feeds")
 
     return Combined_GTFS(combined_feed_dict, output_dir)
 
