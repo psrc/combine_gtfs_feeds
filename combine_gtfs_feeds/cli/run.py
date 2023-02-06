@@ -99,8 +99,10 @@ def add_run_args(parser, multiprocess=True):
         "--service_date",
         type=int,
         metavar="SERVICEDATE",
-        help="date for service in yyyymmdd integer format\
-                       (default: %s)"
+        help=(
+            "date for service in yyyymmdd integer format                      "
+            " (default: %s)"
+        )
         % os.getcwd(),
     )
 
@@ -350,23 +352,147 @@ def frequencies_to_trips(frequencies, trips, stop_times):
     return trips, stop_times
 
 
-def read_gtfs(path, gtfs_file_name, is_zipped, feed_name, logger, empty_df_cols=[]):
+def get_schedule_pattern(merged_stops_times, route_field="route_id"):
+    """
+    Returns a nested diciontary where the first level key is route_id and
+    values are respresentative trip_ids that have unique stop sequences.
+    These are are used as keys for the second level where each value is a
+    dictinary that includes a list of trips_id's that share this stop
+    pattern and a list of ordered stops.
 
+    {route_id : trip_id {trips_ids : [list of trip ids], stops :
+    [list of stops]}}
+
+    """
+    stop_sequence_dict = {
+        k: list(v)
+        for k, v in merged_stops_times.groupby(["trip_id", route_field])["stop_id"]
+    }
+
+    # Empty dictionary to store unique stop sequences
+    my_dict = {}
+    for key, value in stop_sequence_dict.items():
+        trip_id = key[0]
+        route_id = key[1]
+        # Handle some branching later on
+        found = False
+        # If this is the first trip for this route, just add it
+        if route_id not in my_dict.keys():
+            my_dict[route_id] = {trip_id: {"stops": value, "trip_ids": [trip_id]}}
+        # Otherwise check to see if this stop sequence has already been
+        # added for this route
+        else:
+            for k, v in my_dict[route_id].items():
+                if value == v["stops"]:
+                    # This stop sequence has already been added for this
+                    # route, add the trip_id to the list of trip_ids that
+                    # have this sequence in common.
+                    my_dict[route_id][k]["trip_ids"].append(trip_id)
+                    found = True
+                    break
+            if not found:
+                # Add the stop sequence and route, trip info
+                my_dict[route_id][trip_id] = {"stops": value, "trip_ids": [trip_id]}
+        # Set back to False for next iteration
+        found = False
+    return my_dict
+
+
+def get_schedule_pattern_df(schedule_pattern_dict):
+    rows = []
+    for route_id, trips in schedule_pattern_dict.items():
+        for trip_id, data in trips.items():
+            for trip in data["trip_ids"]:
+                rows.append(
+                    {"route_id": route_id, "trip_id1": trip_id, "trip_id2": trip}
+                )
+    df2 = pd.DataFrame(rows)
+
+    return df2[["trip_id1", "trip_id2"]]
+
+
+def shapes_from_stops_sequence(stops, stop_times, trips):
+    trip_cols = list(trips.columns)
+    if "shape_id" not in trip_cols:
+        trip_cols.append("shape_id")
+    merged = stop_times.merge(stops, how="left", on="stop_id")
+    merged = merged.merge(trips, how="left", on="trip_id")
+    schedule_pattern = get_schedule_pattern(merged)
+    schedule_pattern = get_schedule_pattern_df(schedule_pattern)
+    merged = merged.merge(schedule_pattern, left_on="trip_id", right_on="trip_id2")
+    merged["shape_id"] = merged["trip_id1"]
+
+    shapes = merged[merged["trip_id"].isin(merged["trip_id1"])]
+    shapes_cols = {
+        "stop_lat": "shape_pt_lat",
+        "stop_lon": "shape_pt_lon",
+        "stop_sequence": "shape_pt_sequence",
+    }
+    shapes = shapes.rename(columns=shapes_cols)
+    keep_cols = list(shapes_cols.values())
+    keep_cols.append("shape_id")
+    shapes = shapes[keep_cols]
+
+    merged = merged.groupby("trip_id").first().reset_index()
+    new_trips = merged[trip_cols]
+
+    assert len(new_trips) == len(stop_times.trip_id.unique())
+    assert len(new_trips.shape_id.unique()) == len(shapes.shape_id.unique())
+
+    return shapes, new_trips
+
+
+def read_gtfs(path, gtfs_file_name, is_zipped, feed_name, logger, empty_df_cols=[]):
     if is_zipped:
         zf = zipfile.ZipFile(path.with_suffix(".zip"))
         try:
             df = pd.read_csv(zf.open(gtfs_file_name))
+            if df.empty:
+                if feed_name in GTFS_Schema.required_files:
+                    logger(
+                        f"Fatal! {gtfs_file_name} from feed {feed_name} is empty."
+                        " Exiting program"
+                    )
+                    sys.exit()
+
+                else:
+                    logger(f"Warning! {gtfs_file_name} from feed {feed_name} is empty.")
         except:
-            df = pd.DataFrame(columns=empty_df_cols)
-            logger.info(f"Warning! Feed {feed_name} is missing {gtfs_file_name}")
+            if gtfs_file_name in GTFS_Schema.required_files:
+                logger(
+                    f"Fatal! {gtfs_file_name} from feed {feed_name} is missing. Exiting"
+                    " program"
+                )
+                sys.exit()
+            else:
+                df = pd.DataFrame(columns=empty_df_cols)
+
+    # unzipped
     else:
         try:
             df = pd.read_csv(path / gtfs_file_name)
+            if df.empty:
+                if feed_name in GTFS_Schema.required_files:
+                    logger.info(
+                        f"Fatal! {gtfs_file_name} from feed {feed_name} is empty."
+                        " Exiting program"
+                    )
+                    sys.exit()
+
+                else:
+                    logger(f"Warning! {gtfs_file_name} from feed {feed_name} is empty.")
         except:
-            df = pd.DataFrame(columns=empty_df_cols)
-            logger.info(f"Warning! Feed {feed_name} is missing {gtfs_file_name}")
+            if gtfs_file_name in GTFS_Schema.required_files:
+                logger.info(
+                    f"Fatal! {gtfs_file_name} from feed {feed_name} is missing. Exiting"
+                    " program"
+                )
+                sys.exit()
+            else:
+                df = pd.DataFrame(columns=empty_df_cols)
 
     df.columns = df.columns.str.replace(" ", "")
+    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
     return df
 
 
@@ -377,21 +503,22 @@ def run(args):
     a single feed.
     """
 
-    # logger = log_controller.setup_custom_logger("main_logger", args.output_dir)
-    # logger.info("------------------combine_gtfs_feeds Started----------------")
+    logger = log_controller.setup_custom_logger("main_logger", args.output_dir)
+    logger.info("------------------combine_gtfs_feeds Started----------------")
 
-    feeds = combine(args.gtfs_dir, args.service_date, args.output_dir)
+    feeds = combine(args.gtfs_dir, args.service_date, args.output_dir, logger)
 
     feeds.export_feed()
 
-    # logger.info("Finished running combine_gtfs_feeds")
-    # sys.exit()
-    print("Finished running combine_gtfs_feeds")
+    logger.info("Finished running combine_gtfs_feeds")
+    sys.exit()
+    # print("Finished running combine_gtfs_feeds")
 
 
-def combine(gtfs_dir, service_date, output_dir):
-    logger = log_controller.setup_custom_logger("main_logger", output_dir)
-    logger.info("------------------combine_gtfs_feeds Started----------------")
+def combine(gtfs_dir, service_date, output_dir, logger=None):
+    if not logger:
+        logger = log_controller.setup_custom_logger("main_logger", output_dir)
+        logger.info("------------------combine_gtfs_feeds Started----------------")
     output_loc = output_dir
 
     if not os.path.isdir(output_loc):
@@ -454,10 +581,8 @@ def combine(gtfs_dir, service_date, output_dir):
 
         if len(service_id_list) == 0:
             logger.info(
-                "There are no service ids for service\
-                 date {}...".format(
-                    str_service_date
-                )
+                "There are no service ids for service                 date {}..."
+                .format(str_service_date)
             )
             logger.info("for feed {}".format(feed))
             logger.info("Exiting application early!")
@@ -472,10 +597,10 @@ def combine(gtfs_dir, service_date, output_dir):
         frequencies = read_gtfs(full_path, "frequencies.txt", zipped, feed, logger)
 
         if len(frequencies) > 0:
-            logger.info("Feed {} contains frequencies.txt...".format(feed))
+            logger.info(f"Feed {feed} contains frequencies.txt...".format(feed))
             logger.info(
-                "Unique trips will be added to outputs based on\
-                 headways in frequencies.txt"
+                "Unique trips will be added to outputs based on headways in"
+                " frequencies.txt"
             )
             trips, stop_times = frequencies_to_trips(frequencies, trips, stop_times)
 
@@ -485,18 +610,35 @@ def combine(gtfs_dir, service_date, output_dir):
         if "agency_id" not in routes.columns:
             routes["agency_id"] = agency["agency_id"][0]
 
+        # check to make sure there are shapes
+        if len(shapes) == 0:
+            logger.info(
+                f"Warning: feed {feed} is mising shapes.txt. Records for this file will"
+                " be created using route-level unique stop sequence and location. See"
+                " documentation for more information."
+            )
+            shapes, trips = shapes_from_stops_sequence(stops, stop_times, trips)
+            # trips = create_id(trips, feed, "shape_id")
+
         # create new IDs
         trips = create_id(trips, feed, "trip_id")
         trips = create_id(trips, feed, "route_id")
         trips = create_id(trips, feed, "shape_id")
+
+        shapes = create_id(shapes, feed, "shape_id")
+
         stop_times = create_id(stop_times, feed, "trip_id")
         stop_times = create_id(stop_times, feed, "stop_id")
         stops = create_id(stops, feed, "stop_id")
         routes = create_id(routes, feed, "route_id")
-        shapes = create_id(shapes, feed, "shape_id")
 
         # trips
         trips = trips.loc[trips["service_id"].isin(service_id_list)]
+        if len(trips) == 0:
+            logger.info(
+                f"Warning! No trips found for feed {feed} using service_ids"
+                f" {str(service_id_list)}"
+            )
         trips["service_id"] = 1
         trip_id_list = np.unique(trips["trip_id"].tolist())
         route_id_list = np.unique(trips["route_id"].tolist())
@@ -506,9 +648,8 @@ def combine(gtfs_dir, service_date, output_dir):
         stop_times = stop_times.loc[stop_times["trip_id"].isin(trip_id_list)]
         if stop_times["departure_time"].isnull().any():
             logger.info(
-                "Feed {} contains missing departure/arrival times. Interpolating missing times.".format(
-                    feed
-                )
+                "Feed {} contains missing departure/arrival times. Interpolating"
+                " missing times.".format(feed)
             )
             stop_times = interpolate_arrival_departure_time(stop_times)
 

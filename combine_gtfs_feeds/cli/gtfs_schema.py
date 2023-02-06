@@ -127,6 +127,13 @@ class GTFS_Schema(object):
             coerce=True, nullable=True
         )
 
+    required_files = [
+        "agency.txt",
+        "stops.txt",
+        "routes.txt",
+        "trips.txt",
+        "stop_times.txt",
+    ]
     agency_columns = list(Agency.__annotations__.keys())
     stops_columns = list(Stops.__annotations__.keys())
     routes_columns = list(Routes.__annotations__.keys())
