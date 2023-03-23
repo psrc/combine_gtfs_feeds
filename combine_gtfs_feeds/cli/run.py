@@ -121,13 +121,15 @@ def get_service_ids(calendar, calendar_dates, day_of_week, service_date):
     using the user specified service_date.
     """
 
-    regular_service_dates = calendar[
-        (calendar["start_date"] <= service_date)
-        & (calendar["end_date"] >= service_date)
-        & (calendar[day_of_week] == 1)
-    ]["service_id"].tolist()
+    if not calendar.empty:
+        regular_service_dates = calendar[
+            (calendar["start_date"] <= service_date)
+            & (calendar["end_date"] >= service_date)
+            & (calendar[day_of_week] == 1)]["service_id"].tolist()
+    else:
+        regular_service_dates = []
 
-    if len(calendar_dates) > 0:
+    if not calendar_dates.empty:
         exceptions_df = calendar_dates[calendar_dates["date"] == service_date]
         add_service = exceptions_df.loc[exceptions_df["exception_type"] == 1][
             "service_id"
