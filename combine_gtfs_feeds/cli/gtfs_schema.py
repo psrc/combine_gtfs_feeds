@@ -24,7 +24,7 @@ class GTFS_Schema(object):
         stop_desc: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
         stop_lat: Series[float64] = pa.Field(coerce=True, nullable=True)
         stop_lon: Series[float64] = pa.Field(coerce=True, nullable=True)
-        zone_id: Series[str] = pa.Field(coerce=True, nullable=True)
+        zone_id: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
         stop_url: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
         location_type: Optional[Series[pd.Int64Dtype]] = pa.Field(
             coerce=True, nullable=True, isin=[0, 1, 2, 3, 4]
