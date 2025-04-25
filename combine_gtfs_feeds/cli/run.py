@@ -1,25 +1,32 @@
-import combine_gtfs_feeds.cli.log_controller as log_controller
+from __future__ import annotations
+
+import combine_gtfs_feeds.cli.log_controller as log_controller  # type: ignore
 
 try:
     from .gtfs_schema import GTFS_Schema
-except:
+except Exception:
     from gtfs_schema import GTFS_Schema
 
-import pandas as pd
-import numpy as np
-import os as os
 import argparse
+import os as os
 import sys
-from datetime import datetime, timedelta
 import time
-from pathlib import Path
 import zipfile
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
 
 
-class Combined_GTFS(object):
+class Combined_GTFS:
     file_list = ["agency", "trips", "stop_times", "stops", "routes", "shapes"]
 
-    def __init__(self, df_dict, output_dir):
+    def __init__(self, df_dict: dict, output_dir: str):
+        """
+        Initializes the Combined_GTFS class with the provided dataframes and output directory.
+        """
+
         # self.agency_df = df_dict["agency"]
         self.output_dir = output_dir
         self.agency_df = GTFS_Schema.Agency.validate(df_dict["agency"])
@@ -72,6 +79,9 @@ class Combined_GTFS(object):
         ]
 
     def export_feed(self):
+        """
+        Exports the combined GTFS feed to the output directory.
+        """
         dir = Path(self.output_dir)
         self.agency_df.to_csv(dir / "agency.txt", index=None)
         self.routes_df.to_csv(dir / "routes.txt", index=None)
@@ -115,7 +125,12 @@ def add_run_args(parser, multiprocess=True):
     )
 
 
-def get_service_ids(calendar, calendar_dates, day_of_week, service_date):
+def get_service_ids(
+    calendar: pd.DataFrame,
+    calendar_dates: pd.DataFrame,
+    day_of_week: str,
+    service_date: int,
+) -> list:
     """
     Returns a list of valid service_id(s) from each feed
     using the user specified service_date.
@@ -125,7 +140,8 @@ def get_service_ids(calendar, calendar_dates, day_of_week, service_date):
         regular_service_dates = calendar[
             (calendar["start_date"] <= service_date)
             & (calendar["end_date"] >= service_date)
-            & (calendar[day_of_week] == 1)]["service_id"].tolist()
+            & (calendar[day_of_week] == 1)
+        ]["service_id"].tolist()
     else:
         regular_service_dates = []
 
@@ -148,7 +164,7 @@ def get_service_ids(calendar, calendar_dates, day_of_week, service_date):
     return service_id_list
 
 
-def create_id(df, feed, id_column):
+def create_id(df: pd.DataFrame, feed: str, id_column: str) -> pd.DataFrame:
     """
     Changes id_column by prepending each value with
     the feed parameter.
@@ -160,7 +176,7 @@ def create_id(df, feed, id_column):
     return df
 
 
-def dt_to_yyyymmdd(dt_time):
+def dt_to_yyyymmdd(dt_time: datetime) -> int:
     """
     Converts a date time object to
     YYYYMMDD format.
@@ -168,7 +184,7 @@ def dt_to_yyyymmdd(dt_time):
     return 10000 * dt_time.year + 100 * dt_time.month + dt_time.day
 
 
-def get_start_end_date(my_date):
+def get_start_end_date(my_date: datetime) -> tuple[int, int]:
     """
     Gets the day before and after
     the user parameter service_date
@@ -179,7 +195,7 @@ def get_start_end_date(my_date):
     return start_date, end_date
 
 
-def get_weekday(my_date):
+def get_weekday(my_date: datetime) -> str:
     """
     Gets the day of week from user parameter
     service date.
@@ -196,19 +212,7 @@ def get_weekday(my_date):
     return week_days[my_date.weekday()]
 
 
-def convert_to_decimal_minutes(row, field):
-    """
-    Convert HH:MM:SS to seconds since midnight
-    for comparison purposes.
-    """
-
-    H, M, S = row[field].split(":")
-    seconds = float(((float(H) * 3600) + (float(M) * 60) + float(S)) / 60)
-
-    return seconds
-
-
-def convert_to_seconds(value):
+def convert_to_seconds(value: str) -> int:
     """
     Converts hh:mm:ss format to number
     of seconds after midnight.
@@ -217,14 +221,22 @@ def convert_to_seconds(value):
     return int(h) * 3600 + int(m) * 60 + int(s)
 
 
-def to_hhmmss(value):
+def to_hhmmss(value: float) -> str:
     """
     Converts to hhmmss format.
     """
     return time.strftime("%H:%M:%S", time.gmtime(value))
 
 
-def interpolate_arrival_departure_time(stop_times):
+def interpolate_arrival_departure_time(stop_times: pd.DataFrame) -> pd.DataFrame:
+    """
+    Interpolates missing arrival and departure times in stop_times.txt.
+    The times are sorted by trip_id and stop_sequence. 0:00:00 is used as a
+    placeholder for missing times. The times are then converted to seconds,
+    and the missing values are interpolated. Finally, the times are converted
+    back to hh:mm:ss format.
+    """
+
     stop_times.sort_values(["trip_id", "stop_sequence"], inplace=True)
     for col_name in ["arrival_time", "departure_time"]:
         stop_times[col_name].fillna("00:00:00", inplace=True)
@@ -236,7 +248,9 @@ def interpolate_arrival_departure_time(stop_times):
     return stop_times
 
 
-def frequencies_to_trips(frequencies, trips, stop_times):
+def frequencies_to_trips(
+    frequencies: pd.DataFrame, trips: pd.DataFrame, stop_times: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     For each trip_id in frequencies.txt, calculates the number
     of trips and creates records for each trip in trips.txt and
@@ -255,7 +269,7 @@ def frequencies_to_trips(frequencies, trips, stop_times):
     # following is coded so the total number of trips
     # does not include a final one that leaves the first
     # stop at end_time in frequencies. I think this is the
-    # correct interpredtation of the field description:
+    # correct interpretation of the field description:
     # 'Time at which service changes to a different headway
     # (or ceases) at the first stop in the trip.'
 
@@ -265,10 +279,8 @@ def frequencies_to_trips(frequencies, trips, stop_times):
 
     frequencies["total_trips"] = (
         (
-            (
-                (frequencies["end_time_secs"] - frequencies["start_time_secs"])
-                / frequencies["headway_secs"]
-            )
+            (frequencies["end_time_secs"] - frequencies["start_time_secs"])
+            / frequencies["headway_secs"]
         )
         .round(0)
         .astype(int)
@@ -354,7 +366,9 @@ def frequencies_to_trips(frequencies, trips, stop_times):
     return trips, stop_times
 
 
-def get_schedule_pattern(merged_stops_times, route_field="route_id"):
+def get_schedule_pattern(
+    merged_stops_times: pd.DataFrame, route_field="route_id"
+) -> dict:
     """
     Returns a nested diciontary where the first level key is route_id and
     values are respresentative trip_ids that have unique stop sequences.
@@ -400,7 +414,14 @@ def get_schedule_pattern(merged_stops_times, route_field="route_id"):
     return my_dict
 
 
-def get_schedule_pattern_df(schedule_pattern_dict):
+def get_schedule_pattern_df(schedule_pattern_dict: dict) -> pd.DataFrame:
+    """
+    Converts the schedule pattern dictionary to a DataFrame.
+    The DataFrame has two columns: trip_id1 and trip_id2.
+    trip_id1 is the representative trip_id for a route and trip_id2
+    is the trip_id that shares the same stop pattern.
+    """
+
     rows = []
     for route_id, trips in schedule_pattern_dict.items():
         for trip_id, data in trips.items():
@@ -413,7 +434,14 @@ def get_schedule_pattern_df(schedule_pattern_dict):
     return df2[["trip_id1", "trip_id2"]]
 
 
-def shapes_from_stops_sequence(stops, stop_times, trips):
+def shapes_from_stops_sequence(
+    stops: pd.DataFrame, stop_times: pd.DataFrame, trips: pd.DataFrame
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Used when shapes.txt is missing. Creates a new shapes.txt file
+    using the stop_sequence from stop_times.txt.
+    """
+
     trip_cols = list(trips.columns)
     if "shape_id" not in trip_cols:
         trip_cols.append("shape_id")
@@ -444,10 +472,22 @@ def shapes_from_stops_sequence(stops, stop_times, trips):
     return shapes, new_trips
 
 
-def read_gtfs(path, gtfs_file_name, is_zipped, feed_name, logger, empty_df_cols=[]):
+def read_gtfs(
+    path: Path,
+    gtfs_file_name: str,
+    is_zipped: bool,
+    feed_name: str,
+    logger: log_controller.logging.Logger,
+    empty_df_cols=[],
+) -> pd.DataFrame:
+    """
+    Reads in a GTFS file and returns a DataFrame.
+    """
+
     if is_zipped:
         zf = zipfile.ZipFile(path.with_suffix(".zip"))
         try:
+            # df = pd.read_csv(zf.open(gtfs_file_name), dtype_backend="pyarrow")
             df = pd.read_csv(zf.open(gtfs_file_name))
             if df.empty:
                 if feed_name in GTFS_Schema.required_files:
@@ -459,7 +499,7 @@ def read_gtfs(path, gtfs_file_name, is_zipped, feed_name, logger, empty_df_cols=
 
                 else:
                     logger(f"Warning! {gtfs_file_name} from feed {feed_name} is empty.")
-        except:
+        except Exception:
             if gtfs_file_name in GTFS_Schema.required_files:
                 logger(
                     f"Fatal! {gtfs_file_name} from feed {feed_name} is missing. Exiting"
@@ -472,6 +512,7 @@ def read_gtfs(path, gtfs_file_name, is_zipped, feed_name, logger, empty_df_cols=
     # unzipped
     else:
         try:
+            # df = pd.read_csv(path / gtfs_file_name, dtype_backend="pyarrow")
             df = pd.read_csv(path / gtfs_file_name)
             if df.empty:
                 if feed_name in GTFS_Schema.required_files:
@@ -483,7 +524,7 @@ def read_gtfs(path, gtfs_file_name, is_zipped, feed_name, logger, empty_df_cols=
 
                 else:
                     logger(f"Warning! {gtfs_file_name} from feed {feed_name} is empty.")
-        except:
+        except Exception:
             if gtfs_file_name in GTFS_Schema.required_files:
                 logger.info(
                     f"Fatal! {gtfs_file_name} from feed {feed_name} is missing. Exiting"
@@ -494,11 +535,11 @@ def read_gtfs(path, gtfs_file_name, is_zipped, feed_name, logger, empty_df_cols=
                 df = pd.DataFrame(columns=empty_df_cols)
 
     df.columns = df.columns.str.replace(" ", "")
-    df = df.applymap(lambda x: x.strip() if isinstance(x, str) else x)
+    df = df.map(lambda x: x.strip() if isinstance(x, str) else x)
     return df
 
 
-def run(args):
+def run(args: argparse.Namespace) -> None:
     """
     Implements the 'run' sub-command, which combines
     gtfs files from each feed and writes them out to
@@ -517,7 +558,10 @@ def run(args):
     # print("Finished running combine_gtfs_feeds")
 
 
-def combine(gtfs_dir, service_date, output_dir, logger=None):
+def combine(gtfs_dir: str, service_date, output_dir, logger=None) -> Combined_GTFS:
+    """
+    Combines GTFS feeds from each feed and writes them out to a single feed.
+    """
     if not logger:
         logger = log_controller.setup_custom_logger("main_logger", output_dir)
         logger.info("------------------combine_gtfs_feeds Started----------------")
@@ -583,8 +627,9 @@ def combine(gtfs_dir, service_date, output_dir, logger=None):
 
         if len(service_id_list) == 0:
             logger.info(
-                "There are no service ids for service                 date {}..."
-                .format(str_service_date)
+                "There are no service ids for service                 date {}...".format(
+                    str_service_date
+                )
             )
             logger.info("for feed {}".format(feed))
             logger.info("Exiting application early!")
