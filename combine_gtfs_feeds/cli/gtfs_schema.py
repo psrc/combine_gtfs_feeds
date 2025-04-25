@@ -7,7 +7,7 @@ import pandas as pd
 
 
 class GTFS_Schema(object):
-    class Agency(pa.SchemaModel):
+    class Agency(pa.DataFrameModel):
         agency_id: Series[str] = pa.Field(coerce=True)
         agency_name: Series[str] = pa.Field(coerce=True)
         agency_url: Series[str] = pa.Field(coerce=True)
@@ -17,7 +17,7 @@ class GTFS_Schema(object):
         agency_fare_url: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
         agency_email: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
 
-    class Stops(pa.SchemaModel):
+    class Stops(pa.DataFrameModel):
         stop_id: Series[str] = pa.Field(coerce=True)
         stop_code: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
         stop_name: Series[str] = pa.Field(coerce=True)
@@ -37,7 +37,7 @@ class GTFS_Schema(object):
         level_id: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
         platform_code: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
 
-    class Routes(pa.SchemaModel):
+    class Routes(pa.DataFrameModel):
         route_id: Series[str] = pa.Field(coerce=True)
         agency_id: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
         route_short_name: Optional[Series[str]] = pa.Field(coerce=True, nullable=True)
@@ -57,7 +57,7 @@ class GTFS_Schema(object):
             coerce=True, nullable=True, isin=[0, 1, 2, 3]
         )
 
-    class Trips(pa.SchemaModel):
+    class Trips(pa.DataFrameModel):
         route_id: Series[str] = pa.Field(coerce=True)
         service_id: Series[str] = pa.Field(coerce=True)
         trip_id: Series[str] = pa.Field(coerce=True)
@@ -75,7 +75,7 @@ class GTFS_Schema(object):
             coerce=True, nullable=True, isin=[0, 1, 2]
         )
 
-    class Stop_Times(pa.SchemaModel):
+    class Stop_Times(pa.DataFrameModel):
         trip_id: Series[str] = pa.Field(coerce=True)
         arrival_time: Series[str] = pa.Field(coerce=True, nullable=True)
         departure_time: Series[str] = pa.Field(coerce=True, nullable=True)
@@ -101,7 +101,7 @@ class GTFS_Schema(object):
             coerce=True, nullable=True, isin=[0, 1]
         )
 
-    class Calendar(pa.SchemaModel):
+    class Calendar(pa.DataFrameModel):
         service_id: Series[str] = pa.Field(coerce=True)
         monday: Series[int] = pa.Field(isin=[0, 1])
         tuesday: Series[int] = pa.Field(isin=[0, 1])
@@ -113,12 +113,12 @@ class GTFS_Schema(object):
         start_date: Series[pd.Int64Dtype] = pa.Field(coerce=True)
         end_date: Series[pd.Int64Dtype] = pa.Field(coerce=True)
 
-    class Calendar_Dates(pa.SchemaModel):
+    class Calendar_Dates(pa.DataFrameModel):
         service_id: Series[str] = pa.Field(coerce=True)
         date: Series[str] = pa.Field(coerce=True)
         exception_type: Series[int] = pa.Field(coerce=True, isin=[1, 2])
 
-    class Shapes(pa.SchemaModel):
+    class Shapes(pa.DataFrameModel):
         shape_id: Series[str] = pa.Field(coerce=True)
         shape_pt_lat: Series[float64] = pa.Field(coerce=True)
         shape_pt_lon: Series[float64] = pa.Field(coerce=True)
