@@ -1,7 +1,7 @@
 import sys
 
-from combine_gtfs_feeds.cli import CLI
-from combine_gtfs_feeds.cli import run
+from combine_gtfs_feeds.cli import CLI # type: ignore
+from combine_gtfs_feeds.cli import run # type: ignore
 
 
 from combine_gtfs_feeds import __version__, __doc__
