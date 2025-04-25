@@ -1,0 +1,22 @@
+[project]
+name = "combine-gtfs-feeds"
+version = "0.1.9"
+description = "CLI tool to combine multiple GTFS feeds."
+readme = "README.md"
+authors = [
+    {name = "stefancoe",email = "coestefan@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pandera (>=0.5.0)",
+    "numpy (>=1.24.1)",
+    "pandas (>=2.1.0)",
+    "pyyaml (>=6.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
