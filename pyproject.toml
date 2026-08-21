@@ -6,7 +6,7 @@ authors = [
     {name = "stefancoe",email = "coestefan@gmail.com"}
 ]
 license = {text = "MIT"}
-readme = "README.md"
+#readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "pandera (>=0.5.0)",
@@ -17,6 +17,9 @@ dependencies = [
 
 [project.scripts]
 combine_gtfs_feeds = "combine_gtfs_feeds.cli.main:main"
+
+[tool.uv]
+package = true
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

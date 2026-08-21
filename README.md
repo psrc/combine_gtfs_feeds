@@ -4,3 +4,25 @@ A tool to combine gtfs feeds into one feed/dataset. The main purpose of combine_
 Full documentation here:
 https://github.com/psrc/combine_gtfs_feeds/wiki/combine_gtfs_feeds-documentation
 
+## Quick start with uv
+
+Syncing the environment is enough to install this package and its CLI command:
+
+```bash
+uv sync
+```
+
+Run the CLI without activating an environment:
+
+```bash
+uv run combine_gtfs_feeds --help
+```
+
+Or activate the environment and call it directly:
+
+```bash
+# Command Prompt (Windows)
+.venv\Scripts\activate.bat
+combine_gtfs_feeds --help
+```
+
