@@ -705,7 +705,13 @@ def combine(gtfs_dir: str, service_date, output_dir, logger=None) -> Combined_GT
         stops = stops.loc[stops["stop_id"].isin(stop_id_list)]
         # routes
         routes = routes.loc[routes["route_id"].isin(route_id_list)]
-        routes["route_short_name"].fillna(routes["route_id"], inplace=True)
+        # avoid LossySetitemError when route_short_name is all-NaN float64
+        routes["route_short_name"] = routes["route_short_name"].astype(
+            routes["route_id"].dtype
+        )
+        routes["route_short_name"] = routes["route_short_name"].fillna(
+            routes["route_id"]
+        )
         # shapes
         shapes = shapes.loc[shapes["shape_id"].isin(shape_id_list)]
 
